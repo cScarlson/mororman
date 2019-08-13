@@ -1,0 +1,34 @@
+{
+  "name": "@motorman/motorman",
+  "version": "0.0.1",
+  "description": "A Routing Engine for managing Express projects",
+  "main": "index.js",
+  "scripts": {
+    "test": "node test.js"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@motorman/conductor": "0.0.2",
+    "chai": "^4.2.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cScarlson/motorman.git"
+  },
+  "keywords": [
+    "Express",
+    "routing",
+    "engine",
+    "middleware",
+    "policy",
+    "policies",
+    "REST",
+    "Core"
+  ],
+  "author": "Cody S. Carlson",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/cScarlson/motorman/issues"
+  },
+  "homepage": "https://github.com/cScarlson/motorman#readme"
+}
