@@ -1,7 +1,7 @@
 
 Motorman
 ====
-A Routing Engine for managing Express projects
+A Routing Engine for managing Express projects.
 
 ### tl;dr
 As of now, the tests (`./test.js`) and the source are the best documentation. 
