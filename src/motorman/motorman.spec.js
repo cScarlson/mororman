@@ -86,21 +86,9 @@ describe("Motorman Interface", () => {
     describe("Wish List", () => {
         
         xit("should have (these) public members", () => {
-            expect(mm.setRoute).to.be.an.instanceOf(Promise);
-            expect(mm.setPolicy).to.be.an.instanceOf(Promise);
-            expect(mm.setMiddlewareDelegate).to.be.an.instanceOf(Promise);
-            expect(mm.setControllerDelegate).to.be.an.instanceOf(Promise);
-            
-            expect(mm.publish).to.be.an.instanceOf(Promise);
-            expect(mm.subscribe).to.be.an.instanceOf(Promise);
-            expect(mm.unsubscribe).to.be.an.instanceOf(Promise);
-            
-            expect(mm.pRoutes).to.be.an.instanceOf(Promise);
-            expect(mm.pPolicies).to.be.an.instanceOf(Promise);
-            expect(mm.pMiddleware).to.be.an.instanceOf(Promise);
-            expect(mm.pDelegates).to.be.an.instanceOf(Promise);
-            expect(mm.pDelegations).to.be.an.instanceOf(Promise);
-            expect(mm.pBootstrap).to.be.an.instanceOf(Promise);
+            expect(mm.publish).to.be.an.instanceOf(Function);
+            expect(mm.subscribe).to.be.an.instanceOf(Function);
+            expect(mm.unsubscribe).to.be.an.instanceOf(Function);
         });
         
     });
@@ -111,14 +99,11 @@ describe("Motorman Interface", () => {
         it("should have (these) public members", () => {
             assert.isArray(mm.routes);
             assert.isArray(mm.policies);
-            assert.isArray(mm.delegations);
-            assert.isObject(mm.middleware);
-            assert.isObject(mm.controllers);
-            assert.isFunction(mm.setRoutes);
-            assert.isFunction(mm.setPolicies);
-            assert.isFunction(mm.setMiddleware);
-            assert.isFunction(mm.setControllers);
-            assert.isFunction(mm.bootstrap);
+            assert.isArray(mm.docket);
+            // assert.isObject(mm.middleware);
+            // assert.isObject(mm.controllers);
+            assert.isArray(mm.modules);
+            assert.isFunction(mm.define);
         });
         
     });
@@ -127,7 +112,7 @@ describe("Motorman Interface", () => {
     describe("Route configurations", () => {
         
         it("should set route definitions", () => {
-            mm.setRoutes(MOCK_ROUTES);
+            mm.define('routes', MOCK_ROUTES);
             expect(mm.routes.length).to.equal(1);
         });
         
@@ -137,7 +122,7 @@ describe("Motorman Interface", () => {
     describe("Policy configurations", () => {
         
         it("should set policy definitions", () => {
-            mm.setPolicies(MOCK_POLICIES);
+            mm.define('policies', MOCK_POLICIES);
             expect(mm.policies.length).to.equal(1);
         });
         
@@ -147,7 +132,7 @@ describe("Motorman Interface", () => {
     describe("Middleware Delegates", () => {
         
         it("should set policy middleware delegates", () => {
-            mm.setMiddleware(MOCK_MIDDLEWARE);
+            mm.define('middleware', MOCK_MIDDLEWARE);
             expect(mm.middleware['Middleware'] ).to.be.ok;
         });
         
@@ -157,7 +142,7 @@ describe("Motorman Interface", () => {
     describe("Controller Delegates", () => {
         
         it("should set route controller delegates", () => {
-            mm.setControllers(MOCK_CONTROLLERS);
+            mm.define('controllers', MOCK_CONTROLLERS);
             expect(mm.controllers['Controller'] ).to.be.ok;
         });
         
@@ -168,11 +153,10 @@ describe("Motorman Interface", () => {
         var motorman = new Motorman({ router, sandbox });
         // var motorman = mm;  // <-- why won't this work?
         motorman
-            .setRoutes(MOCK_ROUTES)
-            .setPolicies(MOCK_POLICIES)
-            .setMiddleware(MOCK_MIDDLEWARE)
-            .setControllers(MOCK_CONTROLLERS)
-            .bootstrap()
+            .define('routes', MOCK_ROUTES)
+            .define('policies', MOCK_POLICIES)
+            .define('middleware', MOCK_MIDDLEWARE)
+            .define('controllers', MOCK_CONTROLLERS)
             ;
         
         it("should instantiate middleware", () => {
