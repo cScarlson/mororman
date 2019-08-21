@@ -9,7 +9,8 @@
   "dependencies": {},
   "devDependencies": {
     "@motorman/conductor": "0.0.2",
-    "chai": "^4.2.0"
+    "chai": "^4.2.0",
+    "chai-as-promised": "^7.1.1"
   },
   "repository": {
     "type": "git",

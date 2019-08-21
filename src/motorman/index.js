@@ -1,5 +1,12 @@
 
+var { Motorman, DelegatesManager, DelegationsManager, Utilities } = require('./motorman');
+var { utilities } = require('./motorman');
+
 module.exports = {
     maps: require('./maps'),
-    Motorman: require('./motorman'),
+    Motorman,
+    DelegatesManager,
+    DelegationsManager,
+    Utilities,
+    utilities,
 };

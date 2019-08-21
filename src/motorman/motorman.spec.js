@@ -1,7 +1,10 @@
 
-var { expect, assert } = require('chai');
-var { Motorman } = require('./');
+var chai = require('chai'), { expect, assert, use } = chai;
+// var chaiAsPromised = require("chai-as-promised");  // https://www.npmjs.com/package/chai-as-promised
+var { Motorman, DelegatesManager, DelegationsManager, utilities } = require('./');
+var { keyOf } = utilities;
 
+// use(chaiAsPromised);
 
 class MockRouter {
     
@@ -64,138 +67,112 @@ class MockDelegate {
     execute(req, res, next) {}
     
 }
+class MockMiddleware extends MockDelegate {}
+class MockController extends MockDelegate {}
 
 var router = new MockRouter()
   , sandbox = new MockSandbox()
   ;
+var OPTIONS = { router, sandbox };
 var MOCK_ROUTES = [
-    { uri: '/namespace', method: 'get', controller: 'Controller', action: 'find' },
+    { uri: '/namespace', method: 'GET', controller: 'Controller', action: 'find' },
 ];
 var MOCK_POLICIES = [
-    { uri: '/namespace', method: 'get', policies: 'Middleware' },
+    { uri: '/namespace', method: 'GET', policies: 'Middleware' },
 ];
-var MOCK_MIDDLEWARE = { 'Middleware': MockDelegate };
-var MOCK_CONTROLLERS = { 'Controller': MockDelegate };
+var MOCK_MIDDLEWARE = { 'Middleware': MockMiddleware };
+var MOCK_CONTROLLERS = { 'Controller': MockController };
 
 
-var mm = new Motorman({ router, sandbox });  // <-- should this be breaking tests when instantiated here?
-
-describe("Motorman Interface", () => {
-    // var mm = new Motorman({ router, sandbox });  // <-- should this be breaking tests when instantiated here?
+describe("Motorman", () => {
     
-    describe("Wish List", () => {
+    describe("KeyOf", () => {
         
-        xit("should have (these) public members", () => {
-            expect(mm.publish).to.be.an.instanceOf(Function);
-            expect(mm.subscribe).to.be.an.instanceOf(Function);
-            expect(mm.unsubscribe).to.be.an.instanceOf(Function);
+        it("should convert { method, uri } objects to '[method] [uri]' strings", () => {
+            expect( keyOf({ method: 'GET', uri: '/tested' }) ).to.equal('GET /tested');
+        });
+        
+    });
+    
+    describe("Public Interface", () => {
+        
+        it("should have public properties & methods", () => {
+            var motorman = new Motorman(OPTIONS);
+            
+            assert.isObject(motorman.channels);
+            assert.isArray(motorman.routes);
+            assert.isArray(motorman.policies);
+            assert.isArray(motorman.docket);
+            assert.isArray(motorman.middleware);
+            assert.isArray(motorman.controllers);
+            assert.isArray(motorman.modules);
+            assert.isFunction(motorman.define);
+            expect(motorman.delegates).to.be.an.instanceOf(DelegatesManager);
+            expect(motorman.delegations).to.be.an.instanceOf(DelegationsManager);
+            expect(motorman.ready).to.be.an.instanceOf(Promise);
+            expect(motorman.stable).to.be.an.instanceOf(Promise);
+        });
+        
+        it("should have channels", () => {
+            var motorman = new Motorman(OPTIONS);
+            
+            expect(motorman.channels['READY']).to.be.ok;
+            // todo: more
         });
         
     });
     
     
-    describe("Public encapsulation", () => {
+    describe("Usage", () => {
         
-        it("should have (these) public members", () => {
-            assert.isArray(mm.routes);
-            assert.isArray(mm.policies);
-            assert.isArray(mm.docket);
-            // assert.isObject(mm.middleware);
-            // assert.isObject(mm.controllers);
-            assert.isArray(mm.modules);
-            assert.isFunction(mm.define);
+        it("should produce delegate instances from middleware and controllers", () => {
+            var motorman = new Motorman(OPTIONS);
+            
+            motorman
+                .define('routes', MOCK_ROUTES)
+                .define('policies', MOCK_POLICIES)
+                .define('middleware', MOCK_MIDDLEWARE)
+                .define('controllers', MOCK_CONTROLLERS)
+                ;
+            return motorman.ready.then(() => {
+                var { delegates } = motorman, { $instances, instances } = delegates;
+                var mKey = 'Middleware', mExists = $instances.has(mKey);
+                var cKey = 'Middleware', cExists = $instances.has(cKey);
+                
+                expect(mExists).to.equal(true);
+                expect(cExists).to.equal(true);
+                expect(instances.length).to.equal(2);
+            });
         });
-        
-    });
-    
-    
-    describe("Route configurations", () => {
-        
-        it("should set route definitions", () => {
-            mm.define('routes', MOCK_ROUTES);
-            expect(mm.routes.length).to.equal(1);
-        });
-        
-    });
-    
-    
-    describe("Policy configurations", () => {
-        
-        it("should set policy definitions", () => {
-            mm.define('policies', MOCK_POLICIES);
-            expect(mm.policies.length).to.equal(1);
-        });
-        
-    });
-    
-    
-    describe("Middleware Delegates", () => {
-        
-        it("should set policy middleware delegates", () => {
-            mm.define('middleware', MOCK_MIDDLEWARE);
-            expect(mm.middleware['Middleware'] ).to.be.ok;
-        });
-        
-    });
-    
-    
-    describe("Controller Delegates", () => {
-        
-        it("should set route controller delegates", () => {
-            mm.define('controllers', MOCK_CONTROLLERS);
-            expect(mm.controllers['Controller'] ).to.be.ok;
-        });
-        
-    });
-    
-    
-    describe("Bootstrap", () => {
-        var motorman = new Motorman({ router, sandbox });
-        // var motorman = mm;  // <-- why won't this work?
-        motorman
-            .define('routes', MOCK_ROUTES)
-            .define('policies', MOCK_POLICIES)
-            .define('middleware', MOCK_MIDDLEWARE)
-            .define('controllers', MOCK_CONTROLLERS)
-            ;
-        
-        it("should instantiate middleware", () => {
-            var { name, instance: middleware } = motorman.$middleware.get('Middleware');
-            expect(name).to.equal('Middleware');
-            expect(middleware).to.be.an.instanceOf(MockDelegate);
-        });
-        
-        
-        it("should instantiate controllers", () => {
-            var { name, instance: controller } = motorman.$controllers.get('Controller');
-            expect(name).to.equal('Controller');
-            expect(controller).to.be.an.instanceOf(MockDelegate);
-        });
-        
-        
-        it("should instantiate delegates (middleware + controllers)", () => {
-            expect( motorman.$delegates.get('Middleware').instance ).to.be.an.instanceOf(MockDelegate);
-            expect( motorman.$delegates.get('Controller').instance ).to.be.an.instanceOf(MockDelegate);
-        });
-        
-        
-        it("should inject a Sandbox instance", () => {
-            expect( motorman.$middleware.get('Middleware').instance.$ ).to.be.an.instanceOf(MockSandbox);
-            expect( motorman.$controllers.get('Controller').instance.$ ).to.be.an.instanceOf(MockSandbox);
-        });
-        
         
         it("should produce route-policy delegation mappings", () => {
-            expect(motorman.delegations.length).to.equal(1);
+            var motorman = new Motorman(OPTIONS);
+            
+            motorman
+                .define('routes', MOCK_ROUTES)
+                .define('policies', MOCK_POLICIES)
+                .define('middleware', MOCK_MIDDLEWARE)
+                .define('controllers', MOCK_CONTROLLERS)
+                ;
+            return motorman.ready.then(() => {
+                var { delegations } = motorman, { $instances, instances } = delegations;
+                var route = MOCK_ROUTES[0], key = keyOf(route), exists = $instances.has(key);
+                expect(exists).to.equal(true);
+                expect(instances.length).to.equal(1);
+            });
         });
         
+    });
+    
+    describe("Delegates Manager", () => {
         
-        it("should have delegation-maps with handlers and policies", () => {
-            var delegation = motorman.delegations[0];
-            expect(delegation.uri).to.equal('/namespace');
-            expect(delegation.method).to.equal('get');
-            expect(delegation.handlers.length).to.equal(2);
-        });
+        xit("should be fully tested", () => {});
+        
+    });
+    
+    describe("Delegations Manager", () => {
+        
+        xit("should be fully tested", () => {});
         
     });
     

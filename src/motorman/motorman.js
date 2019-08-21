@@ -111,14 +111,37 @@ class Delegate {
 }
 
 
-const DEPENDENCIES = {
-    channels,
+class Utilities {  // this should exist in its own package
+    
+    constructor() {}
+    
+    keyOf(route) {  // TODO: move to exports so that tests can use it
+        var { uri, method } = route, key = `${method} ${uri}`;
+        return key;
+    }
+    
+}
+
+const utilities = new Utilities();
+const sandbox = {
     Superclass: EventHub,
+    Delegate,
+    Deferred,
+    channels,
+    utils: utilities,
 };
 
 
-var DelegatesManager = new (function DelegatesManager({ Superclass, channels }) {
+var DelegatesManager = new (function DelegatesManager($) {
     var _this = this;  // private context
+    var {
+        Superclass,
+        Delegate,
+        Deferred,
+        channels,
+        utils,
+    } = $;
+    var keyOf = utils.keyOf.bind(utils);
     var _middleware = { }
       , _controllers = { }
       , _instances = { }
@@ -149,7 +172,7 @@ var DelegatesManager = new (function DelegatesManager({ Superclass, channels }) 
               , $controllers = new Dictionary()
               , $instances = new Dictionary()
               ;
-            var pReady = Promise.all([ _this.pInstances, _this.pControllers ]).then( ([ middleware, controllers ]) => ({ middleware, controllers }) )
+            var pReady = Promise.all([ _this.pMiddleware, _this.pControllers ]).then( ([ m, c ]) => ({ middleware: m, controllers: c }) )
               , pStable = Promise.all([ _this.pReady, _this.pInstances ]).then( ([ ready, instances ]) => ({ instances }) )
               ;
             
@@ -166,10 +189,10 @@ var DelegatesManager = new (function DelegatesManager({ Superclass, channels }) 
         init() {
             // TODO: add event-hooks after require('@motorman/utilities');
             this.ready
-                .then( ([ m, c ]) => this.load() )
+                .then( () => this.load() )
                 ;
             this.stable
-                .then( ([ m, c, d ]) => {} )
+                .then( () => {} )
                 ;
             return this;
         }
@@ -179,6 +202,7 @@ var DelegatesManager = new (function DelegatesManager({ Superclass, channels }) 
             
             for (let name in definitions) collection.push( new Delegate({ name, type: definitions[name], instance: undefined }) );
             this.middleware = collection;
+            this.instances = collection;
             _this.dMiddleware.resolve($middleware);
             
             return this;
@@ -188,6 +212,7 @@ var DelegatesManager = new (function DelegatesManager({ Superclass, channels }) 
             
             for (let name in definitions) collection.push( new Delegate({ name, type: definitions[name], instance: undefined }) );
             this.controllers = collection;
+            this.instances = collection;
             _this.dControllers.resolve($controllers);
             
             return this;
@@ -195,14 +220,15 @@ var DelegatesManager = new (function DelegatesManager({ Superclass, channels }) 
         
         load() {
             var { $middleware, $controllers, $instances } = this;
-            for (let delegate of $middleware) this.instantiate(delegate);
-            for (let delegate of $controllers) this.instantiate(delegate);
+            for (let [ name, delegate ] of $middleware) this.instantiate(delegate, name, $middleware);
+            for (let [ name, delegate ] of $controllers) this.instantiate(delegate, name, $controllers);
             _this.dInstances.resolve($instances);
         }
-        instantiate(delegate) {
+        instantiate(delegate, name, $map) {
             var { sandbox } = this, { name, type: Class, instance: existing } = delegate, instance = new Class(sandbox);
-            Delegate.call(delegate, { instance });  // update `Delegate {...}` as `Delegate { ..., instance: Class {...} }`
+            var delegate = new Delegate({ ...delegate, instance });  // update `Delegate {...}` as `Delegate { ..., instance: Class {...} }`
             this.$instances.set(name, delegate);
+            $map.set(name, delegate);
         }
         
     }
@@ -219,10 +245,18 @@ var DelegatesManager = new (function DelegatesManager({ Superclass, channels }) 
     this.pInstances = _pInstances;
     
     return DelegatesManager;
-})(DEPENDENCIES);
+})(sandbox);
 
-var DelegationsManager = new (function DelegationsManager({ Superclass, channels }) {
+var DelegationsManager = new (function DelegationsManager($) {
     var _this = this;  // private context
+    var {
+        Superclass,
+        Delegate,
+        Deferred,
+        channels,
+        utils,
+    } = $;
+    var keyOf = utils.keyOf.bind(utils);
     var _routes = [ ]
       , _policies = [ ]
       , _instances = [ ]
@@ -236,11 +270,6 @@ var DelegationsManager = new (function DelegationsManager({ Superclass, channels
       , _pPolicies = _dPolicies.promise
       , _pInstances = _dInstances.promise
       ;
-    
-    function keyOf(route) {
-        var { uri, method } = route, key = `${method} ${uri}`;
-        return key;
-    }
     
     function getDelegateInstances($store, names) {
         var names = names.reduce( (array, n) => array.concat(n), [] )  // ensure no multidimentionality (flatten)
@@ -274,7 +303,7 @@ var DelegationsManager = new (function DelegationsManager({ Superclass, channels
               , $policies = new Dictionary()
               , $instances = new Dictionary()
               ;
-            var pReady = Promise.all([ _this.pRoutes, _this.pPolicies, delegates.ready ]).then( ([ routes, policies ]) => ({ routes, policies }) )
+            var pReady = Promise.all([ _this.pRoutes, _this.pPolicies, delegates.stable ]).then( ([ routes, policies ]) => ({ routes, policies }) )
               , pStable = Promise.all([ _this.pReady, _this.pInstances ]).then( ([ ready, instances ]) => ({ instances }) )
               ;
             
@@ -291,10 +320,10 @@ var DelegationsManager = new (function DelegationsManager({ Superclass, channels
         init() {
             // TODO: add event-hooks after require('@motorman/utilities');
             this.ready
-                .then( ([ m, c ]) => this.generate() )
+                .then( () => this.generate() )
                 ;
             this.stable
-                .then( ([ m, c, d ]) => {} )
+                .then( () => {} )
                 ;
             return this;
         }
@@ -325,10 +354,10 @@ var DelegationsManager = new (function DelegationsManager({ Superclass, channels
             
             // begin @ controller-action
             var key = keyOf(route), policy = $policies.get(key);
-            var endpoint = controller
-              , delegate = delegates.$instances.get(endpoint)
-              , instance = delegate.instance
-              , method = instance[action].bind(instance)  // last hit handler
+            var pipeline = [ controller ]
+              , ware = getDelegateInstances(delegates.$instances, pipeline)
+              , [ instance ] = ware
+              , endpoint = instance[action].bind(instance)  // last hit handler
               ;  // end @ controller-action
             
             // begin @ [specific] route-matching middleware
@@ -348,7 +377,7 @@ var DelegationsManager = new (function DelegationsManager({ Superclass, channels
             var middleware = getHandlers([ ...supraware, ...infraware ]), handlers = [ ...middleware ];  // aggregate supra (1st) & infra (2nd)
             var delegation = { uri, method, controller, action, policies, handlers };
             
-            handlers.push(method);  // push controller method to end of handlers pipeline (aggregate final handler in pipeline)
+            handlers.push(endpoint);  // push controller method to end of handlers pipeline (aggregate final handler in pipeline)
             handlers.forEach( (handler) => !!handler.init && handler.init({ route }) );
             
             return delegation;
@@ -368,10 +397,18 @@ var DelegationsManager = new (function DelegationsManager({ Superclass, channels
     this.pInstances = _pInstances;
     
     return DelegationsManager;
-})(DEPENDENCIES);
+})(sandbox);
 
-var Motorman = new (function Motorman({ Superclass, channels }) {
+var Motorman = new (function Motorman($) {
     var _this = this;  // private context
+    var {
+        Superclass,
+        Delegate,
+        Deferred,
+        channels,
+        utils,
+    } = $;
+    var keyOf = utils.keyOf.bind(utils);
     var _dBootstrap = new Deferred()
       , _pBootstrap = _dBootstrap.promise
       ;
@@ -407,11 +444,10 @@ var Motorman = new (function Motorman({ Superclass, channels }) {
         init() {
             // TODO: add event-hooks after require('@motorman/utilities');
             this.ready
-                .then( () => this.bootstrap(delegations.instances) )
                 .then( (data) => this.publish(this.channels['READY'], data) )
+                .then( () => this.bootstrap(this.delegations.instances) )
                 ;
             this.stable
-                .then( ([ m, c, d ]) => {} )
                 .then( (data) => this.publish(this.channels['STABLE'], data) )
                 ;
             return this;
@@ -452,6 +488,6 @@ var Motorman = new (function Motorman({ Superclass, channels }) {
     this.pBootstrap = _pBootstrap;
     
     return Motorman;
-})(DEPENDENCIES);
+})(sandbox);
 
-module.exports = Motorman;
+module.exports = { Motorman, DelegatesManager, DelegationsManager, Utilities, utilities };
