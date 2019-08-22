@@ -9,9 +9,9 @@ var { MOCK_ROUTER, MOCK_SANDBOX, MOCK_OPTIONS, MOCK_CONTROLLERS, MOCK_MIDDLEWARE
 
 // use(chaiAsPromised);
 
-describe("Delegations Manager (Middleware + Controllers)", () => {
+describe("Delegations Manager (Routes & Policies)", () => {
     
-    it("should fail for now", () => {
+    xit("should be a pending test for now", () => {
         expect(true).to.equal(false);
     });
     

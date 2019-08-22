@@ -9,9 +9,13 @@ var { MOCK_ROUTER, MOCK_SANDBOX, MOCK_OPTIONS, MOCK_CONTROLLERS, MOCK_MIDDLEWARE
 
 // use(chaiAsPromised);
 
-describe("Delegates Manager (Routes + Policies)", () => {
+describe("Delegates Manager (Middleware & Controllers)", () => {
     
-    it("should fail for now", () => {
+    xit("should inject a sandbox into middleware", () => {
+        expect(true).to.equal(false);
+    });
+    
+    xit("should inject a sandbox into controllers", () => {
         expect(true).to.equal(false);
     });
     
