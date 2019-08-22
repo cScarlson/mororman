@@ -1,103 +1,22 @@
 
 var chai = require('chai'), { expect, assert, use } = chai;
+var mocks = require('./mocks');
 // var chaiAsPromised = require("chai-as-promised");  // https://www.npmjs.com/package/chai-as-promised
-var { Motorman, DelegatesManager, DelegationsManager, utilities } = require('./');
+var { Motorman, DelegatesManager, DelegationsManager } = require('../');
+var { utilities } = require('../utilities');
+
+var { MockRouter, MockSandbox, MockDelegate, MockMiddleware, MockController, } = mocks;
+var { MOCK_ROUTER, MOCK_SANDBOX, MOCK_OPTIONS, MOCK_CONTROLLERS, MOCK_MIDDLEWARE, MOCK_POLICIES, MOCK_ROUTES, } = mocks;
 var { keyOf } = utilities;
 
 // use(chaiAsPromised);
 
-class MockRouter {
-    
-    constructor(...splat) {
-        return this;
-    }
-    router(root) {
-        return new MockRouter(root);
-    }
-    use() {
-        return this;
-    }
-    all() {
-        return this;
-    }
-    get() {
-        return this;
-    }
-    post() {
-        return this;
-    }
-    put() {
-        return this;
-    }
-    patch() {
-        return this;
-    }
-    delete() {
-        return this;
-    }
-    param() {
-        return this;
-    }
-    subscribe() {
-        return this;
-    }
-    unsubscribe() {
-        return this;
-    }
-    notify() {
-        return this;
-    }
-    
-}
-class MockSandbox {
-    
-    constructor(...splat) {
-        return this;
-    }
-    
-}
-class MockDelegate {
-    
-    constructor($) {
-        this.$ = $;
-        return this;
-    }
-    
-    find(req, res) {}
-    execute(req, res, next) {}
-    
-}
-class MockMiddleware extends MockDelegate {}
-class MockController extends MockDelegate {}
-
-var router = new MockRouter()
-  , sandbox = new MockSandbox()
-  ;
-var OPTIONS = { router, sandbox };
-var MOCK_ROUTES = [
-    { uri: '/namespace', method: 'GET', controller: 'Controller', action: 'find' },
-];
-var MOCK_POLICIES = [
-    { uri: '/namespace', method: 'GET', policies: 'Middleware' },
-];
-var MOCK_MIDDLEWARE = { 'Middleware': MockMiddleware };
-var MOCK_CONTROLLERS = { 'Controller': MockController };
-
-
 describe("Motorman", () => {
-    
-    describe("KeyOf", () => {
-        
-        it("should convert { method, uri } objects to '[method] [uri]' strings", () => {
-            expect( keyOf({ method: 'GET', uri: '/tested' }) ).to.equal('GET /tested');
-        });
-        
-    });
     
     describe("Public Interface", () => {
         
         it("should have public properties & methods", () => {
-            var motorman = new Motorman(OPTIONS);
+            var motorman = new Motorman(MOCK_OPTIONS);
             
             assert.isObject(motorman.channels);
             assert.isArray(motorman.routes);
@@ -114,7 +33,7 @@ describe("Motorman", () => {
         });
         
         it("should have channels", () => {
-            var motorman = new Motorman(OPTIONS);
+            var motorman = new Motorman(MOCK_OPTIONS);
             
             expect(motorman.channels['READY']).to.be.ok;
             // todo: more
@@ -126,7 +45,7 @@ describe("Motorman", () => {
     describe("Usage", () => {
         
         it("should produce delegate instances from middleware and controllers", () => {
-            var motorman = new Motorman(OPTIONS);
+            var motorman = new Motorman(MOCK_OPTIONS);
             
             motorman
                 .define('routes', MOCK_ROUTES)
@@ -146,7 +65,7 @@ describe("Motorman", () => {
         });
         
         it("should produce route-policy delegation mappings", () => {
-            var motorman = new Motorman(OPTIONS);
+            var motorman = new Motorman(MOCK_OPTIONS);
             
             motorman
                 .define('routes', MOCK_ROUTES)
