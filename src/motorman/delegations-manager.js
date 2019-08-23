@@ -105,13 +105,19 @@ var DelegationsManager = new (function DelegationsManager($) {
         }
         map(route) {
             var { $policies, delegates } = this;
-            var { uri, method, controller, action, policies } = route;
+            var { uri = '', method = '', controller = '', action = '', policies = [] } = route;
+            var uri = uri || '*'
+              , method = method || '*'
+              , controller = controller || 'CONTROLLER-NOT-FOUND'
+              , action = action || 'ACTION-NOT-FOUND'
+              ;
             
             // begin @ controller-action
             var key = keyOf(route), policy = $policies.get(key) || { policies: [] };
             var pipeline = [ controller ]
               , ware = getDelegateInstances(delegates.$instances, pipeline)
-              , [ instance ] = ware
+              ;
+            var [ instance ] = { '1': ware, '0': [ { ['ACTION-NOT-FOUND']: () => {} } ] }[ ware.length ]
               , endpoint = instance[action].bind(instance)  // last hit handler
               ;  // end @ controller-action
             
@@ -132,6 +138,7 @@ var DelegationsManager = new (function DelegationsManager($) {
             var middleware = getHandlers([ ...supraware, ...infraware ]), handlers = [ ...middleware ];  // aggregate supra (1st) & infra (2nd)
             var delegation = { uri, method, controller, action, policies, handlers };
             
+            if ( endpoint.hasOwnProperty('ACTION-NOT-FOUND') ) throw new Error(`Delegations Error: Route at ${index} (${keyOf(route)}) is missing an 'action'`);
             handlers.push(endpoint);  // push controller method to end of handlers pipeline (aggregate final handler in pipeline)
             handlers.forEach( (handler) => !!handler.init && handler.init({ route }) );
             
