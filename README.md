@@ -78,3 +78,5 @@ Motorman *loosely* expects an ExpressJS router. However, it simply uses the `met
 - @Configuration docs
 - @Methods docs
 - `.npmignore`?
+- ~~Figure out why Mocha/Chai throws up even when all tests are passing~~
+- - https://stackoverflow.com/questions/57620079/node-mocha-chai-shows-unhandledpromiserejectionwarning-while-all-tests-pass

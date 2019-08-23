@@ -108,7 +108,7 @@ var DelegationsManager = new (function DelegationsManager($) {
             var { uri, method, controller, action, policies } = route;
             
             // begin @ controller-action
-            var key = keyOf(route), policy = $policies.get(key);
+            var key = keyOf(route), policy = $policies.get(key) || { policies: [] };
             var pipeline = [ controller ]
               , ware = getDelegateInstances(delegates.$instances, pipeline)
               , [ instance ] = ware

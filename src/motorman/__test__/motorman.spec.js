@@ -83,16 +83,4 @@ describe("Motorman", () => {
         
     });
     
-    describe("Delegates Manager", () => {
-        
-        xit("should be fully tested", () => {});
-        
-    });
-    
-    describe("Delegations Manager", () => {
-        
-        xit("should be fully tested", () => {});
-        
-    });
-    
 });
