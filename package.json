@@ -1,6 +1,6 @@
 {
   "name": "@motorman/motorman",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "description": "A Routing Engine for managing Express projects",
   "main": "index.js",
   "scripts": {

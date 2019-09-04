@@ -97,9 +97,7 @@ var DelegationsManager = new (function DelegationsManager($) {
     function bindDelegateInstanceHandler(assignment) {
         var { instance, handler } = assignment;
         var action = handler.bind(instance);
-        var assignment = { ...assignment, action };
-        
-        return assignment;
+        return action;
     }
     
     class DelegationsManager extends Superclass {
@@ -171,9 +169,14 @@ var DelegationsManager = new (function DelegationsManager($) {
             var precedence = getMiddlewareKeys(route)
               , assignments = precedence.reduce( (...splat) => getDefinition($policies, ...splat), pipeline )
 			  , assignments = assignments.map( attachDelegateInstance.bind(this, delegates.$instances) )  // get the already-initialized Delegates
-			  , handlers = assignments.map( bindDelegateInstanceHandler.bind(this) )
+              , handlers = assignments.map( bindDelegateInstanceHandler.bind(this) )
               ;
             var delegation = { ...route, assignments, handlers };
+            var delegate = delegates.$instances.get(controller)
+              , ctrl = delegate.instance
+              , endpoint = ctrl[action].bind(ctrl)
+              ;
+            handlers.push(endpoint);
             // assignments.forEach( ({ instance }) => !!instance.init && instance.init({ delegation }) );
             
             return delegation;
