@@ -26,19 +26,80 @@ var DelegationsManager = new (function DelegationsManager($) {
       , _pInstances = _dInstances.promise
       ;
     
-    function getDelegateInstances($store, names) {
-        var names = names.reduce( (array, n) => array.concat(n), [] )  // ensure no multidimentionality (flatten)
-          , names = names.filter( (n) => !!n )  // ensure !!~names.indexOf(undefined)
-          , delegates = names.map( (name) => $store.get(name) )
-          , delegates = delegates.filter( (d) => !!d )  // ensure !!~delegates.indexOf(undefined)
-          , instances = delegates.map( (delegate) => delegate.instance )
+    function getMiddlewareKeys({ uri, method }) {
+        var exactExact = keyOf({ uri, method })             // 0
+          , exactAbsent = keyOf({ uri, method: '' })        // 1 \
+          , exactAll = keyOf({ uri, method: '*' })          // 1 /
+          , absentExact = keyOf({ uri: '', method })        // 2 \
+          , allExact = keyOf({ uri: '*', method })          // 2 /
+          , absentAbsent = keyOf({ uri: '', method: '' })   // 3 \
+          , absentAll = keyOf({ uri: '', method: '*' })     // 3  \
+          , allAbsent = keyOf({ uri: '*', method: '' })     // 3  /
+          , allAll = keyOf({ uri: '*', method: '*' })       // 3 /
+          ;  // TODO: don't forget about casing ({ uri: x, method: 'pOlIcY', ... })
+        var precedence = [ allAll, allAbsent, absentAll, absentAbsent, allExact, absentExact, exactAll, exactAbsent, exactExact ].reverse();
+        
+        return precedence;
+	}
+	
+    function normalizeRoute(route) {
+        var { uri = '*', method = '*', controller, action = 'execute', policies } = route;
+        var refined = normalizeRoutePolicies(route)
+          , delegates = [].concat(refined)
           ;
-        return instances;
+        var route = { ...route, uri, method, action, delegates };  // don't lose anything from route.
+        
+        return route;
+    }
+    function normalizeRoutePolicies(route) {
+		var { action = 'execute', policies = [] } = route;
+        var route = { ...route, action, policies }  // action = [action] / 'execute'
+          , policies = [].concat(policies)  // ensure array
+          , policies = policies.map( (p) => normalizeRoutePolicy(route, p) )
+          ;
+        return policies;  // > Array [ { name: 'Name', method: "{{'fn'|action|'execute'}}" }, ... ]
+    }
+    /**
+     * @options (order or precedence)
+     *  *   ({ ctrl: [*],       action: [*] },       'Name.fn') >       { name: 'Name', method: 'fn' }
+     *  *   ({ ctrl: undefined, action: 'action' },  'Name')    >       { name: 'Name', method: 'action' }
+     *  *   ({ ctrl: undefined, action: undefined }, 'Name')    >       { name: 'Name', method: 'execute' }
+     *  *   ({ ctrl: 'Ctrl',    action: undefined }, 'Name')    >       { name: 'Name', method: 'execute' }
+     *  *   ({ ctrl: 'Ctrl',    action: 'action' },  'Name')    >       { name: 'Name', method: 'execute' }
+     */
+    function normalizeRoutePolicy({ controller: ctrl, action }, name) {
+        var [ name, method = 'execute' ] = name.split('.');  // method = [fn] / 'execute'
+        var action = { 'true': action, 'false': method }[ !!action ]; // action = [action] | [fn] / 'execute'
+        var method = { 'true': method, 'false': action }[ !!ctrl ];  // method = [fn] / 'execute' | [action] / [fn] / 'execute'
+        var delegate = { id: `${name}.${method}`, name, method };
+        
+        return delegate;  // > Object { name: 'Name', method: "{{'fn'|action|'execute'}}" }
+    }
+            
+    function getDefinition($policies, pipeline, key, i, a) {
+        if ( !$policies.has(key) ) return pipeline;  // must have policy
+        var policy = $policies.get(key), policy = normalizeRoute(policy);  // use on policy to as definitions implement same interface
+        var { delegates, controller, action } = policy;
+        
+        if (controller) delegates.push({ name: controller, method: action });  // that is, the handler (controller-action) for this policy
+        return delegates.concat(pipeline);  // keep pipeline in front (see @order-of-precedence)
     }
     
-    function getHandlers(instances) {
-        var handlers = instances.map( (m) => m['execute'].bind(m) );
-        return handlers;
+    function attachDelegateInstance($store, assignment) {  // assignment:= { name: 'Name', method: '{{method}}' }
+        var { name, method } = assignment;
+        var delegate = $store.get(name), instance = delegate.instance, handler = instance && instance[method];
+        var assignment = { ...assignment, delegate, instance, handler };
+        // if (!instance) this.warnings.push( new Error(`...`) );
+        // if (!handler) this.warnings.push( new Error(`...`) );
+        return assignment;
+    }
+    
+    function bindDelegateInstanceHandler(assignment) {
+        var { instance, handler } = assignment;
+        var action = handler.bind(instance);
+        var assignment = { ...assignment, action };
+        
+        return assignment;
     }
     
     class DelegationsManager extends Superclass {
@@ -98,49 +159,22 @@ var DelegationsManager = new (function DelegationsManager($) {
             var { routes } = this;
             var instances = routes.map( (r) => this.map(r) );
             
-            this.instances = instances;
+			this.instances = instances;
             _this.dInstances.resolve(instances);
             
             return this;
         }
         map(route) {
             var { $policies, delegates } = this;
-            var { uri = '', method = '', controller = '', action = '', policies = [] } = route;
-            var uri = uri || '*'
-              , method = method || '*'
-              , controller = controller || 'CONTROLLER-NOT-FOUND'
-              , action = action || 'ACTION-NOT-FOUND'
+            var route = normalizeRoute(route);
+            var { uri, method, controller, action, policies, delegates: pipeline } = route;
+            var precedence = getMiddlewareKeys(route)
+              , assignments = precedence.reduce( (...splat) => getDefinition($policies, ...splat), pipeline )
+			  , assignments = assignments.map( attachDelegateInstance.bind(this, delegates.$instances) )  // get the already-initialized Delegates
+			  , handlers = assignments.map( bindDelegateInstanceHandler.bind(this) )
               ;
-            
-            // begin @ controller-action
-            var key = keyOf(route), policy = $policies.get(key) || { policies: [] };
-            var pipeline = [ controller ]
-              , ware = getDelegateInstances(delegates.$instances, pipeline)
-              ;
-            var [ instance ] = { '1': ware, '0': [ { ['ACTION-NOT-FOUND']: () => {} } ] }[ ware.length ]
-              , endpoint = instance[action].bind(instance)  // last hit handler
-              ;  // end @ controller-action
-            
-            // begin @ [specific] route-matching middleware
-            var pipeline = [].concat(policy.policies, policies)
-              , infraware = getDelegateInstances(delegates.$instances, pipeline)  // last hit middleware
-              ;  // end @ specific middleware handlers
-            
-            // begin @ [generic] catch-all middleware
-            var allMethodsKey =     keyOf({ method: '*', uri }),    allURIsKey =    keyOf({ method, uri: '*' }),    allKey =    keyOf({ method: '*', uri: '*' })
-              , absentMethodsKey =  keyOf({ method: '', uri }),     absentURIsKey = keyOf({ method, uri: '' }),     absentKey = keyOf({ method: '', uri: '' })
-              , keys = [ allMethodsKey, allURIsKey, allKey, absentMethodsKey, absentURIsKey, absentKey ]
-              ;  // end @ keys for policies { method: x, uri: y } e.g: { method: '*', uri: '*' } (run on all)
-            var pipeline = keys.map( (key) => $policies.get(key) )  // e.g: ['SomePolicy', ['SomePolicy']. undefined]
-              , supraware = getDelegateInstances(delegates.$instances, pipeline)  // first hit middleware
-              ;  // end @ generic middleware handlers
-            
-            var middleware = getHandlers([ ...supraware, ...infraware ]), handlers = [ ...middleware ];  // aggregate supra (1st) & infra (2nd)
-            var delegation = { uri, method, controller, action, policies, handlers };
-            
-            if ( endpoint.hasOwnProperty('ACTION-NOT-FOUND') ) throw new Error(`Delegations Error: Route at ${index} (${keyOf(route)}) is missing an 'action'`);
-            handlers.push(endpoint);  // push controller method to end of handlers pipeline (aggregate final handler in pipeline)
-            handlers.forEach( (handler) => !!handler.init && handler.init({ route }) );
+            var delegation = { ...route, assignments, handlers };
+            // assignments.forEach( ({ instance }) => !!instance.init && instance.init({ delegation }) );
             
             return delegation;
         }
