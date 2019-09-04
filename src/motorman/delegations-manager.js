@@ -173,10 +173,10 @@ var DelegationsManager = new (function DelegationsManager($) {
               ;
             var delegation = { ...route, assignments, handlers };
             var delegate = delegates.$instances.get(controller)
-              , ctrl = delegate.instance
-              , endpoint = ctrl[action].bind(ctrl)
+              , ctrl = delegate && delegate.instance
+              , endpoint = ctrl && ctrl[action].bind(ctrl)
               ;
-            handlers.push(endpoint);
+            if (endpoint) handlers.push(endpoint);  // else route is a policy
             // assignments.forEach( ({ instance }) => !!instance.init && instance.init({ delegation }) );
             
             return delegation;
